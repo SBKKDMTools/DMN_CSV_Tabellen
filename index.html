@@ -146,7 +146,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.5.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.6.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -636,7 +636,37 @@ const LZString=(()=>{
 function lzEncode(str){ return LZString.compressToEncodedURIComponent(str); }
 function lzDecode(str){ return LZString.decompressFromEncodedURIComponent(str)||null; }
 
-// ── SHARE  — speichert CSV im Artifact-Storage, gibt kurzen Link zurück ──
+// ── SUPABASE CONFIG ────────────────────────────────────────
+const SB_URL = 'https://abmeikqfkdyjzlwnbngm.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFibWVpa3Fma2R5anpsd25ibmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNjk4ODcsImV4cCI6MjA5NTg0NTg4N30.A_Vg8FeJTBcmqK3_1RjXIfLgqUMPSCwQiV9uPAg5fA0';
+const SB_HDR = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+async function sbInsert(id, csv, label){
+  const r=await fetch(SB_URL+'/rest/v1/dmn_shares',{
+    method:'POST',
+    headers:{...SB_HDR,'Prefer':'return=minimal'},
+    body:JSON.stringify({id, csv, label})
+  });
+  if(!r.ok){ const t=await r.text(); throw new Error(t); }
+}
+
+async function sbGet(id){
+  const r=await fetch(SB_URL+'/rest/v1/dmn_shares?id=eq.'+encodeURIComponent(id)+'&select=csv',{
+    headers:SB_HDR
+  });
+  if(!r.ok) throw new Error('not found');
+  const arr=await r.json();
+  if(!arr.length) throw new Error('empty');
+  return arr[0].csv;
+}
+
+async function sbDelete(id){
+  await fetch(SB_URL+'/rest/v1/dmn_shares?id=eq.'+encodeURIComponent(id),{
+    method:'DELETE', headers:SB_HDR
+  });
+}
+
+// ── SHARE ──────────────────────────────────────────────────
 function toggleShare(){
   document.getElementById('sharePanel').classList.toggle('visible');
   renderShareList();
@@ -645,41 +675,39 @@ function toggleShare(){
 async function createShareLink(){
   if(!rawRows.length){toast('Keine Daten zum Teilen','error');return;}
 
-  const id  = Date.now();
   const now = new Date();
   const ts  = now.toLocaleDateString('de-DE')+' '+now.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const lid = Date.now();
   const csv = serializeCSV(rawRows);
   const csvKb = (csv.length/1024).toFixed(1);
+  const label = 'Freigabe '+(shareLinks.length+1);
 
-  shareLinks.push({id, label:'Freigabe '+(shareLinks.length+1), url:null, csv, ts, csvKb, loading:true});
+  shareLinks.push({id:lid, label, url:null, sbId:null, csv, ts, csvKb, loading:true});
   renderShareList();
-  toast('⏳ Speichere …','');
+  toast('⏳ Speichere in Supabase …','');
 
-  // Generiere eine kurze ID (8 Zeichen) und speichere CSV im Artifact-Storage
-  const shortId = Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,6);
-  const storeKey = 'dmn_share_' + shortId;
+  // Kurze 8-stellige ID
+  const shortId = Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6);
 
-  try {
-    const result = await window.storage.set(storeKey, csv, true); // shared=true → andere können lesen
-    if(result){
-      const base = window.location.href.split('#')[0];
-      const shortUrl = base + '#id=' + shortId;
-      const sl = shareLinks.find(s=>s.id===id);
-      if(sl){ sl.url=shortUrl; sl.shortId=shortId; sl.storeKey=storeKey; sl.loading=false; sl.urlKb=(shortUrl.length/1024).toFixed(2); }
-      renderShareList();
-      toast(`✓ Kurzlink erstellt!`,'success');
-      return;
-    }
-  } catch(e){}
-
-  // Fallback: LZ-komprimiert in URL
-  const enc = lzEncode(csv);
-  const base = window.location.href.split('#')[0];
-  const fallbackUrl = base+'#share='+enc;
-  const sl = shareLinks.find(s=>s.id===id);
-  if(sl){ sl.url=fallbackUrl; sl.loading=false; sl.urlKb=(fallbackUrl.length/1024).toFixed(1); }
-  renderShareList();
-  toast('Storage nicht verfügbar – langer Link als Fallback','error');
+  try{
+    await sbInsert(shortId, csv, label);
+    const base = window.location.href.split('#')[0];
+    const url  = base+'#id='+shortId;
+    const sl   = shareLinks.find(s=>s.id===lid);
+    if(sl){ sl.url=url; sl.sbId=shortId; sl.loading=false; }
+    renderShareList();
+    toast('✅ Kurzlink erstellt!','success');
+  }catch(e){
+    // Fallback: LZ in URL
+    const enc = lzEncode(csv);
+    const base = window.location.href.split('#')[0];
+    const url  = base+'#share='+enc;
+    const sl   = shareLinks.find(s=>s.id===lid);
+    if(sl){ sl.url=url; sl.loading=false; sl.urlKb=(url.length/1024).toFixed(1); }
+    renderShareList();
+    toast('Supabase Fehler – langer Link als Fallback','error');
+    console.error(e);
+  }
 }
 
 function renderShareList(){
@@ -692,7 +720,7 @@ function renderShareList(){
     <div class="share-item" style="flex-direction:column;gap:8px;align-items:stretch">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <div class="share-lbl">
-          <input type="text" value="${esc(sl.label)}" onchange="renameShare(${sl.id},this.value)" title="Bezeichnung bearbeiten">
+          <input type="text" value="${esc(sl.label)}" onchange="renameShare(${sl.id},this.value)">
         </div>
         <span class="share-ts" style="margin-left:auto;color:var(--text-muted)">
           ${sl.ts} · <span style="color:var(--accent-fach)">${sl.csvKb} KB</span>
@@ -701,21 +729,21 @@ function renderShareList(){
           ? `<span style="color:var(--text-muted);font-size:12px">⏳ Speichere …</span>`
           : `<button class="btn btn-primary" style="padding:5px 12px;font-size:11px" onclick="copyLink(${sl.id})">📋 Link kopieren</button>
              <button class="btn btn-success" style="padding:5px 11px;font-size:11px" onclick="downloadShare(${sl.id})">⬇ CSV</button>
-             ${sl.storeKey?`<button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="delShare(${sl.id})">✕</button>`
-               :`<button class="del-btn" onclick="delShare(${sl.id})">✕</button>`}`
+             <button class="del-btn" onclick="delShare(${sl.id})" title="Löschen">✕</button>`
         }
       </div>
       ${sl.loading?'':`
         <div style="display:flex;align-items:center;gap:10px;background:var(--bg);
                     border:1px solid var(--border);border-radius:6px;padding:8px 12px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:10px;color:var(--text-muted);margin-bottom:3px">
-              ${sl.shortId
-                ? `✅ Kurzlink (${sl.urlKb} KB) — in Outlook einfügen oder als Hyperlink hinterlegen:`
-                : `⚠ Langer Link (${sl.urlKb} KB) — Fallback:`}
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">
+              ${sl.sbId
+                ? `✅ Supabase-Kurzlink — in Outlook/Teams einfügen:`
+                : `⚠ Fallback-Link (lang):`}
             </div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-blue);
-                        word-break:break-all;cursor:pointer;user-select:all"
+            <div style="font-family:'JetBrains Mono',monospace;font-size:${sl.sbId?'13':'10'}px;
+                        color:var(--accent-blue);word-break:break-all;cursor:pointer;user-select:all;
+                        font-weight:${sl.sbId?'600':'400'}"
                  onclick="copyLink(${sl.id})" title="Klicken zum Kopieren">
               ${esc(sl.url||'')}
             </div>
@@ -726,12 +754,11 @@ function renderShareList(){
         </div>`}
     </div>`).join('');
 
-  // QR Codes zeichnen
   shareLinks.filter(sl=>!sl.loading&&sl.url).forEach(sl=>{
     setTimeout(()=>{
-      const canvas=document.getElementById('qr-'+sl.id); if(!canvas)return;
+      const c=document.getElementById('qr-'+sl.id); if(!c)return;
       const img=new Image();
-      img.onload=()=>canvas.getContext('2d').drawImage(img,0,0,72,72);
+      img.onload=()=>c.getContext('2d').drawImage(img,0,0,72,72);
       img.src='https://api.qrserver.com/v1/create-qr-code/?size=144x144&margin=2&data='+encodeURIComponent(sl.url);
     },100);
   });
@@ -744,7 +771,7 @@ function downloadShare(id){
   a.href=URL.createObjectURL(blob);
   a.download=(sl.label||'freigabe').replace(/\s+/g,'_')+'.csv';
   a.click(); URL.revokeObjectURL(a.href);
-  toast(`⬇ CSV gespeichert`,'success');
+  toast('⬇ CSV gespeichert','success');
 }
 
 function copyLink(id){
@@ -753,12 +780,12 @@ function copyLink(id){
     const t=document.createElement('textarea');t.value=sl.url;
     document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);
   });
-  toast(`📋 Link kopiert!`,'success');
+  toast('📋 Link kopiert!','success');
 }
 
 async function delShare(id){
   const sl=shareLinks.find(s=>s.id===id); if(!sl)return;
-  if(sl.storeKey){ try{ await window.storage.delete(sl.storeKey, true); }catch(e){} }
+  if(sl.sbId){ try{ await sbDelete(sl.sbId); }catch(e){} }
   shareLinks=shareLinks.filter(s=>s.id!==id); renderShareList();
 }
 function renameShare(id,label){const sl=shareLinks.find(s=>s.id===id);if(sl)sl.label=label;}
@@ -777,26 +804,22 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 
   const hash=window.location.hash;
 
-  // ── Kurzlink via Artifact-Storage: #id=XXXXXXXX
+  // Supabase Kurzlink: #id=XXXXXXXX
   if(hash.startsWith('#id=')){
     const shortId=hash.slice(4);
-    const storeKey='dmn_share_'+shortId;
     toast('⏳ Lade Tabelle …','');
     try{
-      const result=await window.storage.get(storeKey, true); // shared=true
-      if(result && result.value){
-        loadSharedCSV(result.value);
-        return;
-      }
-    }catch(e){}
-    showError('Dieser Link ist abgelaufen oder ungültig. Bitte neuen Link anfordern.');
+      const csv=await sbGet(shortId);
+      loadSharedCSV(csv);
+    }catch(e){
+      showError('Dieser Link ist abgelaufen oder ungültig. Bitte neuen Link anfordern.');
+    }
     return;
   }
 
-  // ── Langer komprimierter Link: #share=ENCODED (Fallback)
+  // Fallback: LZ-komprimierter Link
   if(hash.startsWith('#share=')){
-    const encoded=hash.slice(7);
-    const csv=lzDecode(encoded);
+    const csv=lzDecode(hash.slice(7));
     if(!csv){ showError('Link konnte nicht dekodiert werden.'); return; }
     loadSharedCSV(csv);
     return;
