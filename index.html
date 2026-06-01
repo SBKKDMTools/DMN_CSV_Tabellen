@@ -115,8 +115,6 @@ thead th{position:relative}
 .resizer{position:absolute;right:0;top:0;height:100%;width:6px;cursor:col-resize;
   z-index:5;user-select:none;background:transparent}
 .resizer:hover,.resizer.active{background:rgba(88,166,255,.5)}
-table{table-layout:fixed;width:100%}
-td,th{overflow:hidden}
 input.cedit{background:rgba(88,166,255,.08);border:1px solid var(--accent-blue);color:var(--text);
   padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;width:100%;
   outline:none;border-radius:4px;min-width:80px}
@@ -153,7 +151,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.0.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.1.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -226,7 +224,7 @@ body.fach-mode .dev-only{display:none!important}
 </div>
 
 <div class="table-wrap" id="tableWrap" style="display:none">
-  <table><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+  <table id="dmnTable"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
 </div>
 
 <!-- MODAL -->
@@ -381,15 +379,22 @@ function renderAll(){renderHead();renderBody();updateStats();}
 function renderHead(){
   const cols=visCols();
 
-  // Build colgroup for explicit widths
-  let cg=`<colgroup><col id="col-ann" style="width:${getColWidth('ann',160)}">`;
-  for(const m of cols) cg+=`<col id="col-${m.c}" style="width:${getColWidth(m.c,140)}">`;
-  cg+='</colgroup>';
-  // Insert colgroup before thead in table
+  // Build colgroup using DOM (insertAdjacentHTML unreliable for colgroup)
   const table=document.getElementById('dmnTable');
   const oldCg=table.querySelector('colgroup');
   if(oldCg) oldCg.remove();
-  table.insertAdjacentHTML('afterbegin',cg);
+  const cg=document.createElement('colgroup');
+  const colAnn=document.createElement('col');
+  colAnn.id='col-ann';
+  colAnn.style.width=getColWidth('ann',160);
+  cg.appendChild(colAnn);
+  for(const m of cols){
+    const col=document.createElement('col');
+    col.id='col-'+m.c;
+    col.style.width=getColWidth(m.c,140);
+    cg.appendChild(col);
+  }
+  table.insertBefore(cg, table.firstChild);
 
   let h=`<tr><th><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div><div class="resizer" data-col="ann"></div></th>`;
   for(const m of cols){
