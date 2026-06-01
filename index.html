@@ -115,7 +115,8 @@ thead th{position:relative}
 .resizer{position:absolute;right:0;top:0;height:100%;width:6px;cursor:col-resize;
   z-index:5;user-select:none;background:transparent}
 .resizer:hover,.resizer.active{background:rgba(88,166,255,.5)}
-table{table-layout:fixed}
+table{table-layout:fixed;width:100%}
+td,th{overflow:hidden}
 input.cedit{background:rgba(88,166,255,.08);border:1px solid var(--accent-blue);color:var(--text);
   padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;width:100%;
   outline:none;border-radius:4px;min-width:80px}
@@ -379,9 +380,20 @@ function renderAll(){renderHead();renderBody();updateStats();}
 
 function renderHead(){
   const cols=visCols();
-  let h=`<tr><th style="width:${getColWidth('ann',160)}"><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div><div class="resizer" data-col="ann"></div></th>`;
+
+  // Build colgroup for explicit widths
+  let cg=`<colgroup><col id="col-ann" style="width:${getColWidth('ann',160)}">`;
+  for(const m of cols) cg+=`<col id="col-${m.c}" style="width:${getColWidth(m.c,140)}">`;
+  cg+='</colgroup>';
+  // Insert colgroup before thead in table
+  const table=document.getElementById('dmnTable');
+  const oldCg=table.querySelector('colgroup');
+  if(oldCg) oldCg.remove();
+  table.insertAdjacentHTML('afterbegin',cg);
+
+  let h=`<tr><th><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div><div class="resizer" data-col="ann"></div></th>`;
   for(const m of cols){
-    h+=`<th class="${m.cssClass}" style="width:${getColWidth(m.c,140)}">
+    h+=`<th class="${m.cssClass}">
       <div class="th-inner">
         <span class="th-sub">${esc(m.ct)}</span>
         <span class="th-lbl">${esc(m.label)}</span>
@@ -398,24 +410,24 @@ function initResizers(){
   document.querySelectorAll('.resizer').forEach(r=>{
     r.addEventListener('mousedown', e=>{
       e.preventDefault();
-      const th = r.parentElement;
-      const colKey = r.dataset.col;
-      const startX = e.pageX;
-      const startW = th.offsetWidth;
+      const colKey=r.dataset.col;
+      const col=document.getElementById('col-'+colKey);
+      const th=r.parentElement;
+      const startX=e.pageX;
+      const startW=th.offsetWidth;
       r.classList.add('active');
-
       function onMove(e){
-        const newW = Math.max(60, startW + e.pageX - startX);
-        colWidths[colKey] = newW;
-        th.style.width = newW+'px';
+        const newW=Math.max(60, startW+e.pageX-startX);
+        colWidths[colKey]=newW;
+        if(col) col.style.width=newW+'px';
       }
       function onUp(){
         r.classList.remove('active');
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
       }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
     });
   });
 }
