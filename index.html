@@ -154,7 +154,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.3.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.4.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -599,8 +599,22 @@ function setMode(m){
   document.getElementById('btnFach').className='mode-btn'+(m==='fach'?' active-fach':'');
   document.getElementById('noticeFach').style.display=m==='fach'?'flex':'none';
   document.getElementById('noticeDev').style.display =m==='dev' ?'flex':'none';
-  // Speichern-Button nur im Fach-Modus UND wenn via Supabase-Link geladen
-  document.getElementById('btnSave').style.display = (m==='fach' && currentShareId) ? 'flex' : 'none';
+  // Speichern-Button immer im Fach-Modus anzeigen
+  const btnSave=document.getElementById('btnSave');
+  if(m==='fach'){
+    btnSave.style.display='flex';
+    if(currentShareId){
+      btnSave.disabled=false;
+      btnSave.style.opacity='1';
+      btnSave.title='Änderungen in Supabase speichern';
+    } else {
+      btnSave.disabled=true;
+      btnSave.style.opacity='0.4';
+      btnSave.title='Nur verfügbar wenn via Freigabe-Link geöffnet';
+    }
+  } else {
+    btnSave.style.display='none';
+  }
   if(rawRows.length)renderAll();
   toast(m==='dev'?'🔧 Entwicklungsmodus':'📋 Fachabteilungs-Modus','success');
 }
