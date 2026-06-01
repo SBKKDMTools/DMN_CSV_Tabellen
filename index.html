@@ -151,7 +151,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.1.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.2.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -170,6 +170,9 @@ body.fach-mode .dev-only{display:none!important}
     </label>
     <button class="btn btn-success" onclick="exportCSV()">⬇ Export CSV</button>
     <button class="btn btn-ghost dev-only" onclick="toggleShare()">🔗 Teilen</button>
+    <button class="btn btn-primary fach-only" id="btnSave" onclick="saveChanges()" style="display:none;background:var(--accent-fach);border-color:var(--accent-fach);color:#0d1117">
+      💾 Änderungen speichern
+    </button>
   </div>
 </header>
 
@@ -564,6 +567,8 @@ function confirmAdd(){
   toast('Regelzeile hinzugefügt','success');
 }
 
+let currentShareId = null; // gesetzt wenn via #id= Link geladen
+
 // ── MODE ───────────────────────────────────────────────────
 function setMode(m){
   mode=m;
@@ -572,11 +577,43 @@ function setMode(m){
   document.getElementById('btnFach').className='mode-btn'+(m==='fach'?' active-fach':'');
   document.getElementById('noticeFach').style.display=m==='fach'?'flex':'none';
   document.getElementById('noticeDev').style.display =m==='dev' ?'flex':'none';
+  // Speichern-Button nur im Fach-Modus UND wenn via Supabase-Link geladen
+  document.getElementById('btnSave').style.display = (m==='fach' && currentShareId) ? 'flex' : 'none';
   if(rawRows.length)renderAll();
   toast(m==='dev'?'🔧 Entwicklungsmodus':'📋 Fachabteilungs-Modus','success');
 }
 
-// ── EXPORT ─────────────────────────────────────────────────
+// ── SPEICHERN (Fachabteilung → Supabase) ───────────────────
+async function saveChanges(){
+  if(!currentShareId){ toast('Kein Supabase-Link aktiv','error'); return; }
+  if(!rawRows.length){ toast('Keine Daten','error'); return; }
+
+  const btn=document.getElementById('btnSave');
+  btn.textContent='⏳ Speichere …';
+  btn.disabled=true;
+
+  const csv=serializeCSV(rawRows);
+  try{
+    // UPDATE in Supabase via PATCH
+    const r=await fetch(SB_URL+'/rest/v1/dmn_shares?id=eq.'+encodeURIComponent(currentShareId),{
+      method:'PATCH',
+      headers:{...SB_HDR,'Prefer':'return=minimal'},
+      body:JSON.stringify({csv, label: fileName})
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error(t); }
+    btn.textContent='✅ Gespeichert!';
+    btn.style.background='#3fb950';
+    toast('✅ Änderungen in Supabase gespeichert — Entwicklung kann den Link neu laden','success');
+    setTimeout(()=>{
+      btn.textContent='💾 Änderungen speichern';
+      btn.disabled=false;
+    },3000);
+  }catch(e){
+    toast('Fehler beim Speichern: '+e.message,'error');
+    btn.textContent='💾 Änderungen speichern';
+    btn.disabled=false;
+  }
+}
 function exportCSV(){
   if(!rawRows.length){toast('Keine Daten','error');return;}
   const csv=serializeCSV(rawRows);
@@ -887,7 +924,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     toast('⏳ Lade Tabelle …','');
     try{
       const csv=await sbGet(shortId);
-      loadSharedCSV(csv);
+      loadSharedCSV(csv, shortId); // shortId übergeben für Speichern-Funktion
     }catch(e){
       showError('Dieser Link ist abgelaufen oder ungültig. Bitte neuen Link anfordern.');
     }
@@ -903,7 +940,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   }
 });
 
-function loadSharedCSV(csv){
+function loadSharedCSV(csv, shareId=null){
   let parsed;
   try{ parsed=parseCSV(csv); }catch(e){ showError('CSV-Daten fehlerhaft.'); return; }
   if(!parsed.length){ showError('Keine Daten im Link gefunden.'); return; }
@@ -912,8 +949,10 @@ function loadSharedCSV(csv){
   rawRows=rawRows.map(r=>{while(r.length<maxLen)r.push('');return r;});
   const nameRow=rawRows.find(r=>r[0]==='META'&&r[1]!=='KENNZEICHEN'&&r[1]!=='');
   fileName=(nameRow?nameRow[1]:'geteilt')+'.csv';
+  currentShareId=shareId;
   buildColMeta(); setDocInfo(); showTable(); setMode('fach');
-  toast('✓ Geteilte DMN-Tabelle geladen','success');
+  if(shareId) toast('✓ Tabelle geladen — Änderungen mit 💾 speichern','success');
+  else toast('✓ Geteilte DMN-Tabelle geladen','success');
 }
 
 function showError(msg){
