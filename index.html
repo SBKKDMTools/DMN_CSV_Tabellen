@@ -152,7 +152,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.9.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.0.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -440,10 +440,9 @@ function renderBody(){
       <span class="rnum">${rowNum+1}</span>
       <span class="ann-cell cell ed" title="${esc(ann)}">${esc(ann)}</span>
       <div class="row-acts">
-        ${mode==='dev'?`
         <button class="ract mv" onclick="event.stopPropagation();moveRow(${i},-1)" title="↑">↑</button>
         <button class="ract mv" onclick="event.stopPropagation();moveRow(${i},1)"  title="↓">↓</button>
-        <button class="ract dup" onclick="event.stopPropagation();dupRow(${i})"   title="Duplizieren">⧉</button>`:''}
+        <button class="ract dup" onclick="event.stopPropagation();dupRow(${i})"   title="Duplizieren">⧉</button>
         <button class="ract del" onclick="event.stopPropagation();delRow(${i})"   title="Löschen">✕</button>
       </div>
     </div></td>`;
