@@ -108,8 +108,14 @@ tr:hover .row-acts{display:flex}
 .ract.dup:hover{color:var(--accent-blue);border-color:var(--accent-blue)}
 .ract.mv:hover{color:var(--accent-fach);border-color:var(--accent-fach)}
 .cell{padding:5px 10px;min-height:32px;display:flex;align-items:center;
-  min-width:80px;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cell.ed:hover{background:rgba(88,166,255,.06);outline:1px dashed rgba(88,166,255,.35);border-radius:3px;cursor:text}
+/* RESIZE */
+thead th{position:relative}
+.resizer{position:absolute;right:0;top:0;height:100%;width:6px;cursor:col-resize;
+  z-index:5;user-select:none;background:transparent}
+.resizer:hover,.resizer.active{background:rgba(88,166,255,.5)}
+table{table-layout:fixed}
 input.cedit{background:rgba(88,166,255,.08);border:1px solid var(--accent-blue);color:var(--text);
   padding:4px 8px;font-family:'JetBrains Mono',monospace;font-size:11px;width:100%;
   outline:none;border-radius:4px;min-width:80px}
@@ -146,7 +152,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.8.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.9.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -361,20 +367,57 @@ function showTable(){
   document.getElementById('toolbar').style.display='flex';
 }
 
+// ── COLUMN WIDTHS ──────────────────────────────────────────
+let colWidths = {}; // key: col index or 'ann', value: px width
+
+function getColWidth(key, defaultW){
+  return colWidths[key] ? colWidths[key]+'px' : defaultW+'px';
+}
+
 // ── RENDER ─────────────────────────────────────────────────
 function renderAll(){renderHead();renderBody();updateStats();}
 
 function renderHead(){
   const cols=visCols();
-  let h='<tr><th><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div></th>';
+  let h=`<tr><th style="width:${getColWidth('ann',160)}"><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div><div class="resizer" data-col="ann"></div></th>`;
   for(const m of cols){
-    h+=`<th class="${m.cssClass}"><div class="th-inner">
-      <span class="th-sub">${esc(m.ct)}</span>
-      <span class="th-lbl">${esc(m.label)}</span>
-    </div></th>`;
+    h+=`<th class="${m.cssClass}" style="width:${getColWidth(m.c,140)}">
+      <div class="th-inner">
+        <span class="th-sub">${esc(m.ct)}</span>
+        <span class="th-lbl">${esc(m.label)}</span>
+      </div>
+      <div class="resizer" data-col="${m.c}"></div>
+    </th>`;
   }
   h+='</tr>';
   document.getElementById('thead').innerHTML=h;
+  initResizers();
+}
+
+function initResizers(){
+  document.querySelectorAll('.resizer').forEach(r=>{
+    r.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      const th = r.parentElement;
+      const colKey = r.dataset.col;
+      const startX = e.pageX;
+      const startW = th.offsetWidth;
+      r.classList.add('active');
+
+      function onMove(e){
+        const newW = Math.max(60, startW + e.pageX - startX);
+        colWidths[colKey] = newW;
+        th.style.width = newW+'px';
+      }
+      function onUp(){
+        r.classList.remove('active');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
 }
 
 function renderBody(){
