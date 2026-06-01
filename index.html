@@ -146,7 +146,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.7.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.8.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -393,9 +393,9 @@ function renderBody(){
     const ann=r[annC]||'';
     h+=`<tr class="rulerow${isSel?' sel':''}" onclick="selRow(event,${i})">`;
     // frozen col-0: annotation + actions
-    h+=`<td><div class="row-lbl">
+    h+=`<td ondblclick="event.stopPropagation();startEditAnn(event,${i},${annC})"><div class="row-lbl">
       <span class="rnum">${rowNum+1}</span>
-      <span class="ann-cell cell ed" ondblclick="startEdit(event,${i},${annC})">${esc(ann)}</span>
+      <span class="ann-cell cell ed" title="${esc(ann)}">${esc(ann)}</span>
       <div class="row-acts">
         ${mode==='dev'?`
         <button class="ract mv" onclick="event.stopPropagation();moveRow(${i},-1)" title="↑">↑</button>
@@ -407,9 +407,9 @@ function renderBody(){
     // data cols — in Fach mode all VISIBLE cols are editable
     for(const m of cols){
       const val=r[m.c]||'';
-      const canEdit = mode==='dev' ? m.editDev : true; // Fach: alle sichtbaren Spalten editierbar
+      const canEdit = mode==='dev' ? m.editDev : true;
       if(canEdit){
-        h+=`<td><div class="cell ed" ondblclick="startEdit(event,${i},${m.c})" title="${esc(val)}">${esc(val)}</div></td>`;
+        h+=`<td ondblclick="event.stopPropagation();startEdit(event,${i},${m.c})"><div class="cell ed" title="${esc(val)}">${esc(val)}</div></td>`;
       } else {
         h+=`<td><div class="cell" style="opacity:.4;font-style:italic" title="${esc(val)}">${esc(val)}</div></td>`;
       }
@@ -430,9 +430,27 @@ function updateStats(){
 
 // ── CELL EDIT ──────────────────────────────────────────────
 function startEdit(e,ri,ci){
-  e.stopPropagation(); if(editCell)commitEdit();
-  const div=e.currentTarget; const val=rawRows[ri][ci]||'';
-  editCell={ri,ci,div};
+  e.stopPropagation();
+  if(editCell) commitEdit();
+  const td = e.currentTarget;
+  const div = td.querySelector('.cell');
+  if(!div) return;
+  const val = rawRows[ri][ci]||'';
+  editCell = {ri, ci, div};
+  div.innerHTML=`<input class="cedit" value="${esc(val)}"
+    onblur="commitEdit()" onkeydown="editKey(event)"
+    style="min-width:${Math.max(80,val.length*7)}px">`;
+  const inp=div.querySelector('input'); inp.focus(); inp.select();
+}
+
+function startEditAnn(e,ri,ci){
+  e.stopPropagation();
+  if(editCell) commitEdit();
+  const td = e.currentTarget;
+  const div = td.querySelector('.ann-cell');
+  if(!div) return;
+  const val = rawRows[ri][ci]||'';
+  editCell = {ri, ci, div};
   div.innerHTML=`<input class="cedit" value="${esc(val)}"
     onblur="commitEdit()" onkeydown="editKey(event)"
     style="min-width:${Math.max(80,val.length*7)}px">`;
