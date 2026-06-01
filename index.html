@@ -146,7 +146,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.6.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v1.7.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -182,9 +182,8 @@ body.fach-mode .dev-only{display:none!important}
 <!-- NOTICES -->
 <div class="notice notice-fach" id="noticeFach" style="display:none">
   🔒 Fachabteilungs-Modus &nbsp;|&nbsp;
-  <span class="chip">INPUT</span> Eingabewerte &nbsp;
-  <span class="chip">OUTPUT</span> Ausgabewerte &nbsp;
-  — Descriptions, Expressions &amp; Metadaten ausgeblendet
+  <span class="chip">INPUT</span> &amp; <span class="chip">OUTPUT</span> vollständig bearbeitbar &nbsp;
+  — Zeilen hinzufügen &amp; löschen erlaubt &nbsp;|&nbsp; Expressions &amp; Metadaten ausgeblendet
 </div>
 <div class="notice notice-dev" id="noticeDev">
   🔧 Entwicklungsmodus &nbsp;|&nbsp; Alle Spalten sichtbar &nbsp;|&nbsp; Vollzugriff
@@ -197,7 +196,7 @@ body.fach-mode .dev-only{display:none!important}
     <input type="text" placeholder="Suchen …" id="searchInp" oninput="renderBody()">
   </div>
   <div class="sep"></div>
-  <button class="btn btn-ghost dev-only" onclick="addRuleRow()">+ Regel hinzufügen</button>
+  <button class="btn btn-ghost" onclick="addRuleRow()">+ Regel hinzufügen</button>
   <div class="sep dev-only"></div>
   <button class="btn btn-danger dev-only" onclick="deleteSelected()">🗑 Ausgewählte löschen</button>
   <div class="stats" id="statsBar"></div>
@@ -301,7 +300,8 @@ function buildColMeta(){
 
     // Fach view: only INPUT + OUTPUT (no expressions, no descriptions, no annotation col — annotation is in frozen col-0)
     const visFach = isIn||isOut;
-    const editFach= isIn||isOut; // annotation handled separately
+    // In Fach mode: all VISIBLE columns are editable (incl. annotation handled separately)
+    const editFach= isIn||isOut;
     const editDev = c>0;
 
     let label=ct, cssClass='';
@@ -404,10 +404,10 @@ function renderBody(){
         <button class="ract del" onclick="event.stopPropagation();delRow(${i})"   title="Löschen">✕</button>
       </div>
     </div></td>`;
-    // data cols
+    // data cols — in Fach mode all VISIBLE cols are editable
     for(const m of cols){
       const val=r[m.c]||'';
-      const canEdit=mode==='dev'?m.editDev:m.editFach;
+      const canEdit = mode==='dev' ? m.editDev : true; // Fach: alle sichtbaren Spalten editierbar
       if(canEdit){
         h+=`<td><div class="cell ed" ondblclick="startEdit(event,${i},${m.c})" title="${esc(val)}">${esc(val)}</div></td>`;
       } else {
