@@ -154,7 +154,7 @@ body.fach-mode .dev-only{display:none!important}
 <body class="dev-mode">
 
 <header>
-  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.4.0</span></div>
+  <div class="logo">DMN<span>/editor</span> <span style="font-size:9px;color:var(--text-muted);font-weight:400;letter-spacing:.05em;vertical-align:middle">v2.5.0</span></div>
   <div class="header-meta">
     <div class="doc-name" id="docName">Keine Datei geladen</div>
     <div class="doc-info" id="docInfo">–</div>
@@ -373,10 +373,42 @@ function showTable(){
 }
 
 // ── COLUMN WIDTHS ──────────────────────────────────────────
-let colWidths = {}; // key: col index or 'ann', value: px width
-
+let colWidths = {};
 function getColWidth(key, defaultW){
   return colWidths[key] ? colWidths[key]+'px' : defaultW+'px';
+}
+
+// ── SORT STATE ─────────────────────────────────────────────
+let sortCol  = null;  // 'ann' | col index | null
+let sortDir  = 'asc'; // 'asc' | 'desc'
+
+function sortByKey(key){
+  if(sortCol===key){ sortDir = sortDir==='asc'?'desc':'asc'; }
+  else { sortCol=key; sortDir='asc'; }
+
+  // Only sort RULE data rows, keep META/INPUT/OUTPUT rows in place
+  const annMeta = colMeta.find(m=>m.isAnn);
+  const annC    = annMeta ? annMeta.c : 1;
+
+  const dataIdx   = rawRows.map((r,i)=>({r,i})).filter(({r})=>r[0]==='RULE'&&r[1]!=='ANNOTATION');
+  const otherRows = rawRows.filter(r=>!(r[0]==='RULE'&&r[1]!=='ANNOTATION'));
+
+  const colIdx = key==='ann' ? annC : key;
+  dataIdx.sort((a,b)=>{
+    const av=(a.r[colIdx]||'').toLowerCase();
+    const bv=(b.r[colIdx]||'').toLowerCase();
+    const cmp=av.localeCompare(bv,'de',{numeric:true});
+    return sortDir==='asc'?cmp:-cmp;
+  });
+
+  // Rebuild rawRows: non-rule rows first (preserving structure), then sorted rules
+  const sortedRules = dataIdx.map(x=>x.r);
+  // Find insertion point: after last non-data row at top
+  const firstRuleIdx = rawRows.findIndex(r=>r[0]==='RULE'&&r[1]!=='ANNOTATION');
+  if(firstRuleIdx>=0){
+    rawRows = [...rawRows.slice(0,firstRuleIdx), ...sortedRules, ...rawRows.slice(firstRuleIdx+sortedRules.length)];
+  }
+  renderAll();
 }
 
 // ── RENDER ─────────────────────────────────────────────────
@@ -385,29 +417,41 @@ function renderAll(){renderHead();renderBody();updateStats();}
 function renderHead(){
   const cols=visCols();
 
-  // Build colgroup using DOM (insertAdjacentHTML unreliable for colgroup)
+  // Build colgroup using DOM
   const table=document.getElementById('dmnTable');
   const oldCg=table.querySelector('colgroup');
   if(oldCg) oldCg.remove();
   const cg=document.createElement('colgroup');
   const colAnn=document.createElement('col');
-  colAnn.id='col-ann';
-  colAnn.style.width=getColWidth('ann',160);
+  colAnn.id='col-ann'; colAnn.style.width=getColWidth('ann',160);
   cg.appendChild(colAnn);
   for(const m of cols){
     const col=document.createElement('col');
-    col.id='col-'+m.c;
-    col.style.width=getColWidth(m.c,140);
+    col.id='col-'+m.c; col.style.width=getColWidth(m.c,140);
     cg.appendChild(col);
   }
   table.insertBefore(cg, table.firstChild);
 
-  let h=`<tr><th><div class="th-inner"><span class="th-sub">REGEL</span><span class="th-lbl">Bezeichnung</span></div><div class="resizer" data-col="ann"></div></th>`;
+  const sortArrow = (key) => {
+    if(sortCol!==key) return '<span style="opacity:.25;margin-left:4px">⇅</span>';
+    return sortDir==='asc'
+      ? '<span style="color:var(--accent-blue);margin-left:4px">↑</span>'
+      : '<span style="color:var(--accent-blue);margin-left:4px">↓</span>';
+  };
+
+  let h=`<tr>
+    <th style="cursor:pointer" onclick="sortByKey('ann')">
+      <div class="th-inner">
+        <span class="th-sub">REGEL</span>
+        <span class="th-lbl">Bezeichnung ${sortArrow('ann')}</span>
+      </div>
+      <div class="resizer" data-col="ann"></div>
+    </th>`;
   for(const m of cols){
-    h+=`<th class="${m.cssClass}">
+    h+=`<th class="${m.cssClass}" style="cursor:pointer" onclick="sortByKey(${m.c})">
       <div class="th-inner">
         <span class="th-sub">${esc(m.ct)}</span>
-        <span class="th-lbl">${esc(m.label)}</span>
+        <span class="th-lbl">${esc(m.label)} ${sortArrow(m.c)}</span>
       </div>
       <div class="resizer" data-col="${m.c}"></div>
     </th>`;
